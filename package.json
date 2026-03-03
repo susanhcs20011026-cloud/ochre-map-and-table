@@ -29,6 +29,7 @@
 		"vite": "^7.3.1"
 	},
 	"dependencies": {
-		"ochre-sdk": "^0.20.13"
+		"ochre-sdk": "^0.20.13",
+		"svelte-maplibre": "^1.2.6"
 	}
 }

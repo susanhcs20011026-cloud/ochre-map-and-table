@@ -1,127 +1,172 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  // 将整个 SDK 作为对象导入
-  import * as OCHRE_SDK from 'ochre-sdk'; 
+  import type { SpatialUnit } from 'ochre-sdk';
+  import {
+    getUniquePropertyLabels,
+    getPropertyValueByLabel,
+    filterProperties
+  } from 'ochre-sdk';
+
+  import { MapLibre, DefaultMarker } from 'svelte-maplibre';
   import * as Table from "$lib/components/ui/table";
   import { Input } from "$lib/components/ui/input";
 
-  // --- Svelte 5 状态管理 ---
-  let spatialUnits = $state<any[]>([]);
-  let search = $state("");
+  const { data } = $props();
 
-  // --- 逻辑：获取数据 ---
-  onMount(async () => {
-    try {
-      const uuid = "240e6e06-880c-4e3a-965a-09673898144c";
-      
-      console.log("SDK 探测成功，尝试获取项目数据...");
+  // 🟢 安全读取 items
+  const spatialUnits: SpatialUnit[] =
+    (data?.items ?? []) as SpatialUnit[];
 
-      // 修正点：直接从 SDK 对象中获取函数，不需要 new
-      // 优先使用 getProject，如果不存在则尝试从 OCHRE 属性中找
-      const getProjectFunc = OCHRE_SDK.getProject || (OCHRE_SDK as any).OCHRE?.getProject;
+  // 🟢 只有在有数据时才生成表头
+  const propertyLabels =
+    spatialUnits.length > 0
+      ? getUniquePropertyLabels(
+          spatialUnits[0]?.properties ?? []
+        )
+      : [];
 
-      if (typeof getProjectFunc === 'function') {
-        const data = await getProjectFunc(uuid);
-        spatialUnits = data.items || [];
-        console.log("数据加载成功！项数:", spatialUnits.length);
-      } else {
-        console.error("在 SDK 中找不到 getProject 函数，请检查控制台打印的 OCHRE_SDK 对象");
-      }
-    } catch (e) {
-      console.error("加载 OCHRE 数据过程中出错:", e);
-    }
-  });
+  let search = $state('');
 
-  // --- 过滤逻辑 (完全遵循讲义第 53 页) ---
   let filteredData = $derived(
-    search === "" 
-      ? spatialUnits 
+    search === ''
+      ? spatialUnits
       : spatialUnits.filter((unit) => {
-          // 匹配名称
-          const nameMatch = unit.label?.toLowerCase().includes(search.toLowerCase());
-          
-          // 匹配属性 (Bonus 逻辑)
-          const filterFunc = (OCHRE_SDK as any).filterProperties;
-          const propMatch = unit.properties?.some((prop: any) => {
-            if (filterFunc) {
-              return filterFunc(
+
+          const nameMatch =
+            unit.identification?.label
+              ?.toLowerCase()
+              .includes(search.toLowerCase());
+
+          const propertyMatch =
+            unit.properties?.some((prop) =>
+              filterProperties(
                 prop,
                 { label: 'all fields', value: search },
                 { includeNestedProperties: true }
-              );
-            }
-            // 如果 SDK 没导出过滤函数，则手动简单搜索
-            return JSON.stringify(prop).toLowerCase().includes(search.toLowerCase());
-          });
-          
-          return nameMatch || propMatch;
+              )
+            );
+
+          return nameMatch || propertyMatch;
         })
   );
 </script>
 
-<div class="p-8 space-y-6 container mx-auto">
-  <header class="border-b pb-4">
-    <h1 class="text-3xl font-bold tracking-tight text-slate-900">OCHRE Spatial Units</h1>
-    <p class="text-muted-foreground">DIGS 20005: Data Publication Project</p>
-  </header>
+<div class="min-h-screen bg-slate-50">
 
-  <div class="max-w-sm">
-    <Input 
-      placeholder="搜索 (例如: Ivory)..." 
-      bind:value={search} 
-      class="h-10 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
-    />
-  </div>
+  <div class="max-w-6xl mx-auto px-6 py-12 space-y-12">
 
-  <div id="map" class="h-48 w-full bg-slate-50 rounded-xl flex flex-col items-center justify-center border-2 border-dashed border-slate-200 shadow-inner">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400 mb-2"><circle cx="12" cy="10" r="3"/><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/></svg>
-    <p class="text-slate-500 font-medium">MapLibre 地图加载区</p>
-    {#if spatialUnits.length > 0}
-      <p class="text-blue-500 text-xs">已准备好 {filteredData.length} 个点位</p>
-    {/if}
-  </div>
+    <!-- Header -->
+    <div class="space-y-3">
+      <h1 class="text-4xl font-bold tracking-tight text-slate-900">
+        {data.identification?.label}
+      </h1>
 
-  <div class="rounded-lg border bg-white shadow-sm overflow-hidden">
-    <Table.Root>
-      <Table.Header class="bg-slate-50">
-        <Table.Row>
-          <Table.Head class="w-[200px] font-bold">名称 (Label)</Table.Head>
-          <Table.Head class="font-bold">UUID</Table.Head>
-          <Table.Head class="font-bold">属性预览 (Properties)</Table.Head>
-        </Table.Row>
-      </Table.Header>
-      <Table.Body>
-        {#each filteredData as unit (unit.uuid)}
-          <Table.Row class="hover:bg-slate-50 transition-colors">
-            <Table.Cell class="font-bold text-blue-600">
-              <a href="/item/{unit.uuid}" class="hover:underline">{unit.label}</a>
-            </Table.Cell>
-            <Table.Cell class="text-[10px] font-mono text-slate-400">{unit.uuid}</Table.Cell>
-            <Table.Cell>
-              <div class="flex gap-1.5 flex-wrap">
-                {#each (unit.properties || []).slice(0, 2) as prop}
-                  <span class="bg-slate-100 text-slate-700 text-[10px] px-2 py-0.5 rounded border border-slate-200">
-                    <span class="font-semibold">{prop.label}:</span> {prop.values?.[0]?.content || ''}
-                  </span>
-                {/each}
-              </div>
-            </Table.Cell>
-          </Table.Row>
-        {:else}
-          <Table.Row>
-            <Table.Cell colspan={3} class="h-32 text-center text-slate-400">
-              {#if spatialUnits.length === 0}
-                <div class="flex flex-col items-center">
-                  <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mb-2"></div>
-                  正在从 OCHRE 获取数据...
-                </div>
-              {:else}
-                没有找到与 "{search}" 相关的项
-              {/if}
-            </Table.Cell>
-          </Table.Row>
+      <p class="text-slate-600 max-w-3xl leading-relaxed">
+        {data.description ?? ''}
+      </p>
+    </div>
+
+    <!-- Filter Card -->
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+      <label class="block text-sm font-medium text-slate-700 mb-2">
+        Filter by name, object type, or material
+      </label>
+
+      <Input
+        placeholder="Search..."
+        bind:value={search}
+        class="w-full h-11"
+      />
+    </div>
+
+    <!-- Map Card -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="p-6 border-b border-slate-200">
+        <h2 class="text-lg font-semibold text-slate-800">
+          Map View
+        </h2>
+      </div>
+
+      <MapLibre
+        zoom={5}
+        center={[33.9, 36.0]}
+        class="h-[450px]"
+        style="https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
+      >
+        {#each filteredData as item (item.uuid)}
+          {#each item.coordinates ?? [] as coord}
+            {#if coord.type === 'point'}
+              <DefaultMarker
+                lngLat={[coord.longitude, coord.latitude]}
+              />
+            {/if}
+          {/each}
         {/each}
-      </Table.Body>
-    </Table.Root>
+      </MapLibre>
+    </div>
+
+    <!-- Table Card -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200">
+
+      <div class="p-6 border-b border-slate-200">
+        <h2 class="text-lg font-semibold text-slate-800">
+          Objects ({filteredData.length})
+        </h2>
+      </div>
+
+      <div class="overflow-x-auto">
+
+        <Table.Root>
+
+          <!-- Header -->
+          <Table.Header>
+            <Table.Row class="bg-slate-100">
+              <Table.Head class="text-slate-700 font-semibold">
+                Name
+              </Table.Head>
+
+              {#each propertyLabels as label}
+                <Table.Head class="text-slate-700 font-semibold">
+                  {label}
+                </Table.Head>
+              {/each}
+            </Table.Row>
+          </Table.Header>
+
+          <!-- Body -->
+          <Table.Body>
+
+            {#each filteredData as item (item.uuid)}
+
+              <Table.Row class="hover:bg-slate-50 transition-colors">
+
+                <!-- Name Column -->
+                <Table.Cell>
+                  <a
+                    href={`/item/${item.uuid}`}
+                    class="text-blue-600 font-medium hover:underline"
+                  >
+                    {item.identification?.label ?? ''}
+                  </a>
+                </Table.Cell>
+
+                <!-- Dynamic Columns -->
+                {#each propertyLabels as label}
+                  <Table.Cell class="text-slate-700">
+                    {getPropertyValueByLabel(item.properties, label) ?? ''}
+                  </Table.Cell>
+                {/each}
+
+              </Table.Row>
+
+            {/each}
+
+          </Table.Body>
+
+        </Table.Root>
+
+      </div>
+    </div>
+
   </div>
+
 </div>
