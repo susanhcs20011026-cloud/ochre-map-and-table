@@ -12,11 +12,11 @@
 
   const { data } = $props();
 
-  // 🟢 安全读取 items
+  
   const spatialUnits: SpatialUnit[] =
     (data?.items ?? []) as SpatialUnit[];
 
-  // 🟢 只有在有数据时才生成表头
+  
   const propertyLabels =
     spatialUnits.length > 0
       ? getUniquePropertyLabels(

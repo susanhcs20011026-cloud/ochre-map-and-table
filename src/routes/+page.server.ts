@@ -13,6 +13,5 @@ export const load: PageServerLoad = async () => {
     throw new Error("Response failed!");
   }
 
-  // 🔥 直接返回 set
   return set;
 };

@@ -8,10 +8,17 @@
   const { data } = $props();
   const item = data as SpatialUnit;
 
-  // 🔹 图片（现在结构是 image.url）
-  const imageUrl = item.image?.url ?? null;
+  const sdkUrl = item.image?.url ?? null;
+  const uuidMatch = sdkUrl?.match(/uuid=([^&]+)/);
+  const imageUuid = uuidMatch ? uuidMatch[1] : null;
+  const imageUrl = imageUuid
+    ? `https://ochre.lib.uchicago.edu/ochre?uuid=${imageUuid}&preview`
+    : null;
 
-  // 🔹 真正 metadata 在 observation 里
+  const description = typeof item.description === 'string'
+    ? item.description
+    : (item.description as any)?.content?.string ?? null;
+
   const observationProperties =
     item.observations?.[0]?.properties ?? [];
 
