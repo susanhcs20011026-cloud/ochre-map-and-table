@@ -9,14 +9,7 @@
   const item = data as SpatialUnit;
 
   // 🔹 图片（现在结构是 image.url）
-  const imageUuid =
-  item.image?.url
-    ?.match(/uuid=([^&]+)/)?.[1] ?? null;
-
-const imageUrl =
-  imageUuid
-    ? `/api/image/${imageUuid}`
-    : null;
+  const imageUrl = item.image?.url ?? null;
 
   // 🔹 真正 metadata 在 observation 里
   const observationProperties =
@@ -79,7 +72,6 @@ const imageUrl =
         <div class="space-y-4">
           {#each propertyLabels as label}
             <div class="flex flex-col sm:flex-row sm:justify-between border-b pb-3">
-
               <span class="font-medium text-slate-800">
                 {label}
               </span>
@@ -87,7 +79,6 @@ const imageUrl =
               <span class="text-slate-600 mt-1 sm:mt-0">
                 {getPropertyValueByLabel(observationProperties, label)}
               </span>
-
             </div>
           {/each}
         </div>
